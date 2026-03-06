@@ -36,9 +36,40 @@ async function logout() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'logout' }),
         });
-    } catch {}
+    } catch { }
     window.location.href = 'index.html';
 }
+
+// ===== Auto Logout on Idle =====
+let inactivityTimer;
+const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15 minutes
+
+function resetInactivityTimer() {
+    clearTimeout(inactivityTimer);
+    inactivityTimer = setTimeout(() => {
+        // Auto logout if idle limit reached
+        logout();
+    }, INACTIVITY_LIMIT_MS);
+}
+
+function initAutoLogout() {
+    // Listen for user interactions to reset timer
+    ['mousemove', 'mousedown', 'keypress', 'touchstart', 'scroll'].forEach(evt => {
+        document.addEventListener(evt, resetInactivityTimer, true);
+    });
+    // Start timer initially
+    resetInactivityTimer();
+}
+
+// Call initAutoLogout when requireAuth succeeds
+const originalRequireAuth = requireAuth;
+requireAuth = async function (allowedRoles = []) {
+    const user = await originalRequireAuth(allowedRoles);
+    if (user) {
+        initAutoLogout();
+    }
+    return user;
+};
 
 // Toast notifications
 function showToast(message, type = 'info') {
