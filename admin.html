@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScanWarehouse — Admin</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+    <!-- Mobile Menu Toggle -->
+    <button class="menu-toggle" id="menuToggle" onclick="toggleSidebar()">☰</button>
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <div class="admin-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand" style="text-align:center;">
+                <div
+                    style="background:rgba(255,255,255,0.08); border-radius:12px; padding:12px; display:inline-block; margin-bottom:12px; width:100%; max-width:320px;">
+                    <img src="Logo.png" alt="Logo"
+                        style="width:100%; display:block; border-radius:6px; object-fit:contain;">
+                </div>
+                <h2>ScanWarehouse</h2>
+                <span>Admin Panel</span>
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="#dashboard" class="active" onclick="switchTab('dashboard')"><span class="icon">📊</span>
+                        Dashboard</a></li>
+                <li><a href="#receive" onclick="switchTab('receive')"><span class="icon">📥</span> รับสินค้าเข้า</a>
+                </li>
+                <li><a href="#status" onclick="switchTab('status')"><span class="icon">📋</span> สถานะสินค้า</a></li>
+                <li><a href="#pick-history" onclick="switchTab('pick-history')"><span class="icon">📤</span>
+                        ประวัติเบิก</a></li>
+                <li id="navUsers" style="display:none;"><a href="#users" onclick="switchTab('users')"><span
+                            class="icon">👥</span> จัดการสมาชิก</a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar" id="userAvatar">A</div>
+                    <div>
+                        <div class="user-name" id="userName">Admin</div>
+                        <div class="user-role" id="userDept">IT</div>
+                    </div>
+                </div>
+                <button class="btn btn-outline btn-sm btn-block" onclick="logout()">🚪 ออกจากระบบ</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- ==================== DASHBOARD ==================== -->
+            <div id="tab-dashboard" class="tab-page active">
+                <div class="page-header">
+                    <h1>📊 Dashboard</h1>
+                </div>
+                <div class="stats-grid" id="statsGrid">
+                    <!-- Filled by JS -->
+                </div>
+                <div class="glass-card">
+                    <div class="card-header">
+                        <h3>📤 รายการเบิกล่าสุด</h3>
+                    </div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>SO</th>
+                                    <th>Serial</th>
+                                    <th>Model</th>
+                                    <th>Status</th>
+                                    <th>DateTime</th>
+                                    <th>Name</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentPicksBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="glass-card">
+                    <div class="card-header">
+                        <h3>📥 รายการรับเข้าล่าสุด</h3>
+                    </div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>PO</th>
+                                    <th>Model</th>
+                                    <th>Serial</th>
+                                    <th>Status</th>
+                                    <th>ScanIN</th>
+                                    <th>Name</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentReceiveBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== RECEIVE ==================== -->
+            <div id="tab-receive" class="tab-page" style="display:none;">
+                <div class="page-header">
+                    <h1>📥 รับสินค้าเข้า (Receive)</h1>
+                    <div class="actions">
+                        <button class="btn btn-primary" onclick="openReceiveModal()">➕ เพิ่มรายการ</button>
+                        <button class="btn btn-success" onclick="openImportModal()">📄 Import Excel</button>
+                    </div>
+                </div>
+
+                <div class="glass-card">
+                    <div class="card-header">
+                        <h3>รายการทั้งหมด</h3>
+                        <div class="search-bar">
+                            <div class="search-input">
+                                <input type="text" id="receiveSearch" placeholder="ค้นหา PO, Model, Serial..."
+                                    oninput="loadReceiveList()">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>PO</th>
+                                    <th>Model</th>
+                                    <th>PartNo</th>
+                                    <th>Serial</th>
+                                    <th>Warranty</th>
+                                    <th>Status</th>
+                                    <th>ScanIN</th>
+                                    <th>NameIN</th>
+                                    <th>ScanOUT</th>
+                                    <th>NameOUT</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="receiveTableBody">
+                                <tr>
+                                    <td colspan="11" class="text-center" style="padding:40px; color:var(--text-muted);">
+                                        กำลังโหลด...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== STATUS ==================== -->
+            <div id="tab-status" class="tab-page" style="display:none;">
+                <div class="page-header">
+                    <h1>📋 สถานะสินค้า</h1>
+                </div>
+                <div class="glass-card">
+                    <div class="card-header">
+                        <div class="search-bar" style="width:100%;">
+                            <div class="search-input" style="flex:1;">
+                                <input type="text" id="statusSearch" placeholder="ค้นหา PO, Model, Serial, PartNo..."
+                                    oninput="loadStatusList()">
+                            </div>
+                            <select id="statusFilter" onchange="loadStatusList()"
+                                style="padding:10px 16px; background:#fff; border:1px solid rgba(0,0,0,0.08); border-radius:8px; color:#1a1a2e; font-family:var(--font); font-size:14px; outline:none;">
+                                <option value="">ทุกสถานะ</option>
+                                <option value="Open">Open</option>
+                                <option value="Confirm Picking">Confirm Picking</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>PO</th>
+                                    <th>Model</th>
+                                    <th>PartNo</th>
+                                    <th>Serial</th>
+                                    <th>Warranty</th>
+                                    <th>Status</th>
+                                    <th>ScanIN</th>
+                                    <th>NameIN</th>
+                                    <th>ScanOUT</th>
+                                    <th>NameOUT</th>
+                                </tr>
+                            </thead>
+                            <tbody id="statusTableBody">
+                                <tr>
+                                    <td colspan="10" class="text-center" style="padding:40px; color:var(--text-muted);">
+                                        กำลังโหลด...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== PICK HISTORY ==================== -->
+            <div id="tab-pick-history" class="tab-page" style="display:none;">
+                <div class="page-header">
+                    <h1>📤 ประวัติเบิกสินค้า</h1>
+                </div>
+                <div class="glass-card">
+                    <div class="card-header">
+                        <div class="search-bar" style="width:100%;">
+                            <div class="search-input" style="flex:1;">
+                                <input type="text" id="pickSearch" placeholder="ค้นหา SO, Serial, Model..."
+                                    oninput="loadPickHistory()">
+                            </div>
+                            <select id="pickStatusFilter" onchange="loadPickHistory()"
+                                style="padding:10px 16px; background:#fff; border:1px solid rgba(0,0,0,0.08); border-radius:8px; color:#1a1a2e; font-family:var(--font); font-size:14px; outline:none;">
+                                <option value="">ทุกสถานะ</option>
+                                <option value="Pass">Pass</option>
+                                <option value="Fail">Fail</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>SO</th>
+                                    <th>Serial</th>
+                                    <th>Model</th>
+                                    <th>PartNo</th>
+                                    <th>DateTime</th>
+                                    <th>Status</th>
+                                    <th>Name</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pickHistoryBody">
+                                <tr>
+                                    <td colspan="7" class="text-center" style="padding:40px; color:var(--text-muted);">
+                                        กำลังโหลด...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== USERS ==================== -->
+            <div id="tab-users" class="tab-page" style="display:none;">
+                <div class="page-header">
+                    <h1>👥 จัดการสมาชิก</h1>
+                    <div class="actions">
+                        <button class="btn btn-primary" onclick="openUserModal()">➕ เพิ่มสมาชิก</button>
+                    </div>
+                </div>
+
+                <div class="glass-card">
+                    <div class="table-wrapper">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Username</th>
+                                    <th>ชื่อ-สกุล</th>
+                                    <th>แผนก</th>
+                                    <th>สิทธิ์</th>
+                                    <th>วันที่สร้าง</th>
+                                    <th>จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersBody">
+                                <tr>
+                                    <td colspan="6" class="text-center" style="padding:40px; color:var(--text-muted);">
+                                        กำลังโหลด...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ==================== MODALS ==================== -->
+
+    <!-- User Modal -->
+    <div class="modal-overlay" id="userModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="userModalTitle">➕ เพิ่มสมาชิก</h3>
+                <button class="modal-close" onclick="closeUserModal()" type="button">✕</button>
+            </div>
+            <form id="userForm" onsubmit="submitUser(event)">
+                <input type="hidden" id="userId">
+
+                <div class="form-group">
+                    <label>Username <span style="color:red">*</span></label>
+                    <input type="text" id="userUsername" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Password <span id="pwdReq" style="color:red">*</span></label>
+                    <input type="password" id="userPassword" placeholder="เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยนรหัสผ่าน">
+                </div>
+
+                <div class="form-group">
+                    <label>ชื่อ-สกุล <span style="color:red">*</span></label>
+                    <input type="text" id="userFullName" required>
+                </div>
+
+                <div class="form-group">
+                    <label>แผนก</label>
+                    <input type="text" id="userDepartment">
+                </div>
+
+                <div class="form-group">
+                    <label>สิทธิ์การใช้งาน <span style="color:red">*</span></label>
+                    <select id="userRole" required>
+                        <option value="warehouse">Warehouse Staff (เบิกของ)</option>
+                        <option value="sale_admin">Sale Admin (หน้าบ้าน)</option>
+                        <option value="admin">Admin (จัดการระบบ)</option>
+                    </select>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeUserModal()">ยกเลิก</button>
+                    <button type="submit" class="btn btn-primary">💾 บันทึก</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Receive Modal -->
+    <div class="modal-overlay" id="receiveModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="receiveModalTitle">➕ เพิ่มรับสินค้า</h3>
+                <button class="modal-close" onclick="closeReceiveModal()">✕</button>
+            </div>
+            <form id="receiveForm" onsubmit="submitReceive(event)">
+                <input type="hidden" id="receiveId">
+                <div class="form-group">
+                    <label>PO (Purchase Order)</label>
+                    <input type="text" id="receivePO" placeholder="เลข PO">
+                </div>
+                <div class="form-group">
+                    <label>Model (รหัสสินค้า)</label>
+                    <input type="text" id="receiveModel" placeholder="รุ่นสินค้า">
+                </div>
+                <div class="form-group">
+                    <label>PartNo</label>
+                    <input type="text" id="receivePartNo" placeholder="หมายเลขชิ้นส่วน">
+                </div>
+                <div class="form-group">
+                    <label>Serial *</label>
+                    <input type="text" id="receiveSerial" placeholder="Serial Number" required>
+                </div>
+                <div class="form-group">
+                    <label>Warranty (ปี)</label>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <input type="number" id="receiveWarranty" placeholder="จำนวนปี" min="0" style="flex:1;">
+                        <span style="color:var(--text-secondary); font-size:14px; white-space:nowrap;">Years</span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline" onclick="closeReceiveModal()">ยกเลิก</button>
+                    <button type="submit" class="btn btn-primary" id="receiveSubmitBtn">💾 บันทึก</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Import Modal -->
+    <div class="modal-overlay" id="importModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>📄 Import Excel</h3>
+                <button class="modal-close" onclick="closeImportModal()">✕</button>
+            </div>
+            <div style="margin-bottom: 16px; text-align: right;">
+                <a href="api/template.php" class="btn btn-outline btn-sm" download>📥 ดาวน์โหลด Template Excel</a>
+            </div>
+            <div class="file-upload" id="fileUploadZone">
+                <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" onchange="handleFileSelect(event)">
+                <div class="upload-icon">📁</div>
+                <p>ลากไฟล์มาวาง หรือ คลิกเพื่อเลือกไฟล์</p>
+                <p style="font-size:12px; color:var(--text-muted); margin-top:8px;">.xlsx, .xls, .csv</p>
+            </div>
+            <div id="importPreview" class="mt-2 hidden">
+                <h4 style="margin-bottom:12px;">📋 Preview (<span id="importCount">0</span> รายการ)</h4>
+                <div class="table-wrapper" style="max-height:300px; overflow-y:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>PO</th>
+                                <th>Model</th>
+                                <th>PartNo</th>
+                                <th>Serial</th>
+                                <th>Warranty</th>
+                            </tr>
+                        </thead>
+                        <tbody id="importPreviewBody"></tbody>
+                    </table>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline" onclick="closeImportModal()">ยกเลิก</button>
+                    <button class="btn btn-success" onclick="submitImport()">📥 Import ทั้งหมด</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirm Modal -->
+    <div class="modal-overlay" id="deleteModal">
+        <div class="modal" style="max-width:400px;">
+            <div class="confirm-dialog">
+                <div class="confirm-icon">⚠️</div>
+                <h3>ยืนยันการลบ</h3>
+                <p id="deleteMessage">คุณต้องการลบรายการนี้หรือไม่?</p>
+                <div class="confirm-actions">
+                    <button class="btn btn-outline" onclick="closeDeleteModal()">ยกเลิก</button>
+                    <button class="btn btn-danger" id="confirmDeleteBtn" onclick="confirmDelete()">🗑️ ลบ</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- SheetJS for Excel parsing -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="js/auth.js"></script>
+    <script>
+        let currentUser = null;
+        let pendingDeleteId = null;
+        let pendingDeleteType = 'receive'; // 'receive' or 'user'
+        let importData = [];
+
+        // ===== Helpers =====
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDateTime(dateStr) {
+            if (!dateStr) return '-';
+            try {
+                const date = new Date(dateStr);
+                return date.toLocaleString('th-TH', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }).replace(',', '');
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
+        // ===== Init =====
+        (async () => {
+            currentUser = await requireAuth(['admin', 'sale_admin']);
+            if (!currentUser) return;
+
+            document.getElementById('userName').textContent = currentUser.full_name;
+            document.getElementById('userDept').textContent = currentUser.department;
+            document.getElementById('userAvatar').textContent = currentUser.full_name.charAt(0).toUpperCase();
+
+            // Only show Users tab for admin
+            if (currentUser.role === 'admin') {
+                document.getElementById('navUsers').style.display = 'block';
+            }
+
+            loadDashboard();
+        })();
+
+        // ===== Sidebar / Tabs =====
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-page').forEach(p => p.style.display = 'none');
+            document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
+
+            const tabEl = document.getElementById('tab-' + tab);
+            if (tabEl) tabEl.style.display = 'block';
+
+            const navLink = document.querySelector(`.sidebar-nav a[href="#${tab}"]`);
+            if (navLink) navLink.classList.add('active');
+
+            // Load data for the tab
+            if (tab === 'dashboard') loadDashboard();
+            else if (tab === 'receive') loadReceiveList();
+            else if (tab === 'status') loadStatusList();
+            else if (tab === 'pick-history') loadPickHistory();
+            else if (tab === 'users' && currentUser.role === 'admin') loadUsers();
+
+            // Close mobile sidebar
+            if (window.innerWidth <= 1024) toggleSidebar();
+        }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('open');
+            document.getElementById('sidebarOverlay').classList.toggle('active');
+        }
+
+        // ===== Toast Notification =====
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('removing');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // ===== USER MANAGEMENT =====
+        async function loadUsers() {
+            try {
+                const users = await apiCall('users.php');
+                const tbody = document.getElementById('usersBody');
+
+                if (users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center">ไม่พบสมาชิก</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = users.map(u => `
+                    <tr>
+                        <td style="font-weight:600;">${escapeHtml(u.username)}</td>
+                        <td>${escapeHtml(u.full_name)}</td>
+                        <td>${escapeHtml(u.department || '-')}</td>
+                        <td><span class="badge ${u.role === 'admin' ? 'badge-picked' : 'badge-open'}">${u.role}</span></td>
+                        <td>${formatDateTime(u.created_at)}</td>
+                        <td>
+                            <div style="display:flex; gap:6px;">
+                                <button class="btn btn-outline btn-sm" onclick='editUser(${JSON.stringify(u)})'>✏️</button>
+                                ${u.id !== currentUser.id ? `<button class="btn btn-danger btn-sm" onclick="openDeleteModal(${u.id}, '${escapeHtml(u.username)}', 'user')">🗑️</button>` : ''}
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                showToast('โหลดข้อมูลสมาชิกผิดพลาด: ' + err.message, 'error');
+            }
+        }
+
+        function openUserModal() {
+            document.getElementById('userModalTitle').textContent = '➕ เพิ่มสมาชิก';
+            document.getElementById('userForm').reset();
+            document.getElementById('userId').value = '';
+            document.getElementById('userPassword').required = true;
+            document.getElementById('pwdReq').style.display = 'inline';
+            document.getElementById('userPassword').placeholder = 'กรอกรหัสผ่าน';
+
+            document.getElementById('userModal').classList.add('active');
+        }
+
+        function editUser(user) {
+            document.getElementById('userModalTitle').textContent = '✏️ แก้ไขสมาชิก';
+            document.getElementById('userForm').reset();
+
+            document.getElementById('userId').value = user.id;
+            document.getElementById('userUsername').value = user.username;
+            document.getElementById('userFullName').value = user.full_name;
+            document.getElementById('userDepartment').value = user.department;
+            document.getElementById('userRole').value = user.role;
+
+            document.getElementById('userPassword').required = false;
+            document.getElementById('pwdReq').style.display = 'none';
+            document.getElementById('userPassword').placeholder = 'เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยนรหัสผ่าน';
+
+            document.getElementById('userModal').classList.add('active');
+        }
+
+        function closeUserModal() {
+            document.getElementById('userModal').classList.remove('active');
+        }
+
+        async function submitUser(e) {
+            e.preventDefault();
+
+            const id = document.getElementById('userId').value;
+            const data = {
+                username: document.getElementById('userUsername').value.trim(),
+                password: document.getElementById('userPassword').value,
+                full_name: document.getElementById('userFullName').value.trim(),
+                department: document.getElementById('userDepartment').value.trim(),
+                role: document.getElementById('userRole').value
+            };
+
+            try {
+                if (id) {
+                    data.id = id;
+                    await apiCall('users.php', 'PUT', data);
+                    showToast('แก้ไขสมาชิกสำเร็จ', 'success');
+                } else {
+                    await apiCall('users.php', 'POST', data);
+                    showToast('เพิ่มสมาชิกสำเร็จ', 'success');
+                }
+                closeUserModal();
+                loadUsers();
+            } catch (err) {
+                showToast('บันทึกผิดพลาด: ' + err.message, 'error');
+            }
+        }
+
+        // ===== Stat Card Navigation =====
+        function goToStatus(filterValue) {
+            // Set filter BEFORE switching tab so that switchTab's loadStatusList() uses it
+            const filterEl = document.getElementById('statusFilter');
+            if (filterEl) filterEl.value = filterValue;
+            switchTab('status');
+        }
+
+        function goToPickHistory(filterValue) {
+            // Set filter BEFORE switching tab so that switchTab's loadPickHistory() uses it
+            const filterEl = document.getElementById('pickStatusFilter');
+            if (filterEl) filterEl.value = filterValue;
+            switchTab('pick-history');
+        }
+
+        // ===== DASHBOARD =====
+        async function loadDashboard() {
+            try {
+                const data = await apiCall('status.php');
+                document.getElementById('statsGrid').innerHTML = `
+                    <div class="stat-card purple" onclick="goToStatus('')" style="cursor:pointer;" title="ดูสินค้าทั้งหมด">
+                        <div class="stat-icon">📦</div>
+                        <div class="stat-value">${data.total_receive}</div>
+                        <div class="stat-label">สินค้าทั้งหมดในระบบ</div>
+                    </div>
+                    <div class="stat-card blue" onclick="goToStatus('Open')" style="cursor:pointer;" title="ดูสินค้า Open">
+                        <div class="stat-icon">📂</div>
+                        <div class="stat-value">${data.open_items}</div>
+                        <div class="stat-label">สินค้า Open (พร้อมเบิก)</div>
+                    </div>
+                    <div class="stat-card green" onclick="goToStatus('Confirm Picking')" style="cursor:pointer;" title="ดู Confirm Picking">
+                        <div class="stat-icon">✅</div>
+                        <div class="stat-value">${data.picked_items}</div>
+                        <div class="stat-label">Confirm Picking</div>
+                    </div>
+                    <div class="stat-card orange" onclick="goToPickHistory('')" style="cursor:pointer;" title="ดูประวัติเบิกวันนี้">
+                        <div class="stat-icon">📤</div>
+                        <div class="stat-value">${data.today_picks}</div>
+                        <div class="stat-label">เบิกวันนี้</div>
+                    </div>
+                    <div class="stat-card cyan" onclick="goToPickHistory('')" style="cursor:pointer;" title="ดูประวัติเบิกเดือนนี้">
+                        <div class="stat-icon">📅</div>
+                        <div class="stat-value">${data.month_picks}</div>
+                        <div class="stat-label">เบิกเดือนนี้</div>
+                    </div>
+                    <div class="stat-card red" onclick="goToPickHistory('Fail')" style="cursor:pointer;" title="ดูรายการ Fail">
+                        <div class="stat-icon">❌</div>
+                        <div class="stat-value">${data.fail_count}</div>
+                        <div class="stat-label">Fail ทั้งหมด</div>
+                    </div>
+                `;
+
+                // Recent picks
+                document.getElementById('recentPicksBody').innerHTML = data.recent_picks.length
+                    ? data.recent_picks.map(p => `
+                        <tr>
+                            <td>${escapeHtml(p.so)}</td>
+                            <td style="font-family:monospace; font-size:12px;">${escapeHtml(p.serial)}</td>
+                            <td>${escapeHtml(p.model)}</td>
+                            <td><span class="badge badge-${p.status.toLowerCase()}">${p.status}</span></td>
+                            <td>${formatDateTime(p.date_time)}</td>
+                            <td>${escapeHtml(p.name)}</td>
+                        </tr>
+                    `).join('')
+                    : '<tr><td colspan="6" class="text-center" style="padding:30px; color:var(--text-muted);">ยังไม่มีรายการเบิก</td></tr>';
+
+                // Recent receive
+                document.getElementById('recentReceiveBody').innerHTML = data.recent_receive.length
+                    ? data.recent_receive.map(r => `
+                        <tr>
+                            <td>${escapeHtml(r.po)}</td>
+                            <td>${escapeHtml(r.model)}</td>
+                            <td style="font-family:monospace; font-size:12px;">${escapeHtml(r.serial)}</td>
+                            <td><span class="badge ${r.status === 'Open' ? 'badge-open' : 'badge-picked'}">${r.status}</span></td>
+                            <td>${formatDateTime(r.time_scan_in)}</td>
+                            <td>${escapeHtml(r.name_scan_in)}</td>
+                        </tr>
+                    `).join('')
+                    : '<tr><td colspan="6" class="text-center" style="padding:30px; color:var(--text-muted);">ยังไม่มีรายการรับเข้า</td></tr>';
+            } catch (err) {
+                showToast('โหลด Dashboard ผิดพลาด: ' + err.message, 'error');
+            }
+        }
+
+        // ===== RECEIVE LIST =====
+        async function loadReceiveList() {
+            const search = document.getElementById('receiveSearch')?.value || '';
+            try {
+                const items = await apiCall(`receive.php?search=${encodeURIComponent(search)}`);
+                const tbody = document.getElementById('receiveTableBody');
+
+                if (items.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="11" class="text-center" style="padding:40px; color:var(--text-muted);">ไม่พบรายการ</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = items.map(r => `
+                    <tr>
+                        <td>${escapeHtml(r.po)}</td>
+                        <td>${escapeHtml(r.model)}</td>
+                        <td>${escapeHtml(r.part_no)}</td>
+                        <td style="font-family:monospace; font-size:12px;">${escapeHtml(r.serial)}</td>
+                        <td>${escapeHtml(r.warranty)}</td>
+                        <td><span class="badge ${r.status === 'Open' ? 'badge-open' : 'badge-picked'}">${r.status}</span></td>
+                        <td style="color:#2563eb; background:rgba(37,99,235,0.1);">${formatDateTime(r.time_scan_in)}</td>
+                        <td style="color:#2563eb; background:rgba(37,99,235,0.1);">${escapeHtml(r.name_scan_in || '-')}</td>
+                        <td style="color:#059669; background:rgba(5,150,105,0.1);">${formatDateTime(r.time_scan_out)}</td>
+                        <td style="color:#059669; background:rgba(5,150,105,0.1);">${escapeHtml(r.name_scan_out || '-')}</td>
+                        <td>
+                            <div style="display:flex; gap:6px;">
+                                <button class="btn btn-outline btn-sm" onclick='editReceive(${JSON.stringify(r)})'>✏️</button>
+                                <button class="btn btn-danger btn-sm" onclick="openDeleteModal(${r.id}, '${escapeHtml(r.serial)}')">🗑️</button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                showToast('โหลดรายการรับเข้าผิดพลาด: ' + err.message, 'error');
+            }
+        }
+
+        // ===== RECEIVE MODAL =====
+        function openReceiveModal(editItem = null) {
+            document.getElementById('receiveModal').classList.add('active');
+            document.getElementById('receiveForm').reset();
+            document.getElementById('receiveId').value = '';
+
+            if (editItem) {
+                document.getElementById('receiveModalTitle').textContent = '✏️ แก้ไขรายการ';
+                document.getElementById('receiveId').value = editItem.id;
+                document.getElementById('receivePO').value = editItem.po;
+                document.getElementById('receiveModel').value = editItem.model;
+                document.getElementById('receivePartNo').value = editItem.part_no;
+                document.getElementById('receiveSerial').value = editItem.serial;
+                document.getElementById('receiveWarranty').value = parseInt(editItem.warranty) || editItem.warranty.replace(/[^0-9]/g, '') || '';
+            } else {
+                document.getElementById('receiveModalTitle').textContent = '➕ เพิ่มรับสินค้า';
+            }
+        }
+
+        function closeReceiveModal() {
+            document.getElementById('receiveModal').classList.remove('active');
+        }
+
+        function editReceive(item) {
+            openReceiveModal(item);
+        }
+
+        async function submitReceive(e) {
+            e.preventDefault();
+            const id = document.getElementById('receiveId').value;
+            const payload = {
+                po: document.getElementById('receivePO').value,
+                model: document.getElementById('receiveModel').value,
+                part_no: document.getElementById('receivePartNo').value,
+                serial: document.getElementById('receiveSerial').value,
+                warranty: document.getElementById('receiveWarranty').value ? document.getElementById('receiveWarranty').value + ' Years' : '',
+            };
+
+            try {
+                if (id) {
+                    payload.id = parseInt(id);
+                    await apiCall('receive.php', 'PUT', payload);
+                    showToast('อัปเดตสำเร็จ', 'success');
+                } else {
+                    payload.action = 'create';
+                    await apiCall('receive.php', 'POST', payload);
+                    showToast('เพิ่มรายการสำเร็จ', 'success');
+                }
+                closeReceiveModal();
+                loadReceiveList();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // ===== IMPORT EXCEL =====
+        function openImportModal() {
+            document.getElementById('importModal').classList.add('active');
+            document.getElementById('importPreview').classList.add('hidden');
+            document.getElementById('excelFile').value = '';
+            importData = [];
+        }
+
+        function closeImportModal() {
+            document.getElementById('importModal').classList.remove('active');
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (evt) {
+                try {
+                    const wb = XLSX.read(evt.target.result, { type: 'binary' });
+                    const ws = wb.Sheets[wb.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+                    // Map column names (flexible)
+                    importData = json.map(row => ({
+                        po: row['PO'] || row['po'] || '',
+                        model: row['Model'] || row['model'] || '',
+                        part_no: row['PartNo'] || row['part_no'] || row['Part No'] || '',
+                        serial: row['Serial'] || row['serial'] || '',
+                        warranty: row['Warranty'] || row['warranty'] || '',
+                    })).filter(r => r.serial); // Only rows with serial
+
+                    if (importData.length === 0) {
+                        showToast('ไม่พบข้อมูลที่มี Serial', 'warning');
+                        return;
+                    }
+
+                    // Show preview
+                    document.getElementById('importCount').textContent = importData.length;
+                    document.getElementById('importPreviewBody').innerHTML = importData.slice(0, 50).map(r => `
+                        <tr>
+                            <td>${escapeHtml(r.po)}</td>
+                            <td>${escapeHtml(r.model)}</td>
+                            <td>${escapeHtml(r.part_no)}</td>
+                            <td style="font-family:monospace; font-size:12px;">${escapeHtml(r.serial)}</td>
+                            <td>${escapeHtml(r.warranty)}</td>
+                        </tr>
+                    `).join('');
+                    document.getElementById('importPreview').classList.remove('hidden');
+                } catch (err) {
+                    showToast('ไม่สามารถอ่านไฟล์ได้: ' + err.message, 'error');
+                }
+            };
+            reader.readAsBinaryString(file);
+        }
+
+        async function submitImport() {
+            if (importData.length === 0) return;
+
+            try {
+                const result = await apiCall('receive.php', 'POST', {
+                    action: 'import',
+                    items: importData,
+                });
+                showToast(result.message, 'success');
+                if (result.errors && result.errors.length > 0) {
+                    result.errors.forEach(e => showToast(e, 'warning'));
+                }
+                closeImportModal();
+                loadReceiveList();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // ===== DELETE =====
+        function openDeleteModal(id, label, type = 'receive') {
+            pendingDeleteId = id;
+            pendingDeleteType = type;
+
+            let msg = `ต้องการลบข้อมูลนี้หรือไม่?`;
+            if (type === 'receive') {
+                msg = `ต้องการลบ Serial "${label}" หรือไม่?`;
+            } else if (type === 'user') {
+                msg = `ต้องการลบผู้ใช้ "${label}" หรือไม่?`;
+            }
+
+            document.getElementById('deleteMessage').textContent = msg;
+            document.getElementById('deleteModal').classList.add('active');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').classList.remove('active');
+            pendingDeleteId = null;
+        }
+
+        async function confirmDelete() {
+            if (!pendingDeleteId) return;
+            try {
+                if (pendingDeleteType === 'user') {
+                    await apiCall(`users.php?id=${pendingDeleteId}`, 'DELETE');
+                    showToast('ลบผู้ใช้สำเร็จ', 'success');
+                    loadUsers();
+                } else {
+                    await apiCall(`receive.php?id=${pendingDeleteId}`, 'DELETE');
+                    showToast('ลบรายการรับเข้าสำเร็จ', 'success');
+                    loadReceiveList();
+                }
+                closeDeleteModal();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // ===== STATUS LIST =====
+        async function loadStatusList() {
+            const search = document.getElementById('statusSearch')?.value || '';
+            const status = document.getElementById('statusFilter')?.value || '';
+            try {
+                const items = await apiCall(`receive.php?search=${encodeURIComponent(search)}&status=${encodeURIComponent(status)}`);
+                const tbody = document.getElementById('statusTableBody');
+
+                if (items.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding:40px; color:var(--text-muted);">ไม่พบรายการ</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = items.map(r => `
+                    <tr>
+                        <td>${escapeHtml(r.po)}</td>
+                        <td>${escapeHtml(r.model)}</td>
+                        <td>${escapeHtml(r.part_no)}</td>
+                        <td style="font-family:monospace; font-size:12px;">${escapeHtml(r.serial)}</td>
+                        <td>${escapeHtml(r.warranty)}</td>
+                        <td><span class="badge ${r.status === 'Open' ? 'badge-open' : 'badge-picked'}">${r.status}</span></td>
+                        <td style="color:#2563eb; background:rgba(37,99,235,0.1);">${formatDateTime(r.time_scan_in)}</td>
+                        <td style="color:#2563eb; background:rgba(37,99,235,0.1);">${escapeHtml(r.name_scan_in || '-')}</td>
+                        <td style="color:#059669; background:rgba(5,150,105,0.1);">${formatDateTime(r.time_scan_out)}</td>
+                        <td style="color:#059669; background:rgba(5,150,105,0.1);">${escapeHtml(r.name_scan_out || '-')}</td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                showToast('โหลดสถานะผิดพลาด: ' + err.message, 'error');
+            }
+        }
+
+        // ===== PICK HISTORY =====
+        async function loadPickHistory() {
+            const search = document.getElementById('pickSearch')?.value || '';
+            const status = document.getElementById('pickStatusFilter')?.value || '';
+            try {
+                const items = await apiCall(`pick.php?search=${encodeURIComponent(search)}&status=${encodeURIComponent(status)}`);
+                const tbody = document.getElementById('pickHistoryBody');
+
+                if (items.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center" style="padding:40px; color:var(--text-muted);">ไม่พบรายการ</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = items.map(p => `
+                    <tr>
+                        <td>${escapeHtml(p.so)}</td>
+                        <td style="font-family:monospace; font-size:12px;">${escapeHtml(p.serial)}</td>
+                        <td>${escapeHtml(p.model)}</td>
+                        <td>${escapeHtml(p.part_no)}</td>
+                        <td>${formatDateTime(p.date_time)}</td>
+                        <td><span class="badge badge-${p.status.toLowerCase()}">${p.status}</span></td>
+                        <td>${escapeHtml(p.name)}</td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                showToast('โหลดประวัติเบิกผิดพลาด: ' + err.message, 'error');
+            }
+        }
+
+        // Drag & drop for file upload
+        document.addEventListener('DOMContentLoaded', () => {
+            const zone = document.getElementById('fileUploadZone');
+            if (zone) {
+                zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+                zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+                zone.addEventListener('drop', e => {
+                    e.preventDefault();
+                    zone.classList.remove('dragover');
+                    const file = e.dataTransfer.files[0];
+                    if (file) {
+                        document.getElementById('excelFile').files = e.dataTransfer.files;
+                        handleFileSelect({ target: { files: [file] } });
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+
+</html>

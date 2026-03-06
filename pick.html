@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ScanWarehouse — Pick</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+    <div class="pick-layout">
+        <!-- Header -->
+        <header class="pick-header">
+            <div style="display:flex; align-items:center; gap:12px;">
+                <img src="Logo.png" alt="Logo" style="height:64px; border-radius:4px;">
+                <h1 style="margin:0;">Pick (เบิก)</h1>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span class="user-badge" id="pickUserBadge">-</span>
+                <button class="btn btn-outline btn-sm" onclick="logout()"
+                    style="padding:6px 10px; font-size:12px;">🚪</button>
+            </div>
+        </header>
+
+        <!-- Body -->
+        <div class="pick-body">
+            <!-- SO Input -->
+            <div class="glass-card scan-section">
+                <div class="form-group" style="margin-bottom:0;">
+                    <label style="font-size:14px; font-weight:600; color:var(--text-primary);">📋 Sales Order
+                        (SO)</label>
+                    <input type="text" id="soInput" placeholder="กรอกเลข SO" style="font-size:16px; padding:14px 16px;">
+                </div>
+            </div>
+
+            <!-- Model & Part No -->
+            <div class="glass-card scan-section">
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label style="font-size:14px; font-weight:600; color:var(--text-primary);">📦 Model</label>
+                    <input type="text" id="modelInput" placeholder="กรอก Model"
+                        style="font-size:16px; padding:14px 16px;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                    <label style="font-size:14px; font-weight:600; color:var(--text-primary);">🔧 Part No.</label>
+                    <input type="text" id="partNoInput" placeholder="กรอก Part No."
+                        style="font-size:16px; padding:14px 16px;">
+                </div>
+            </div>
+
+            <!-- Scan Serial -->
+            <div class="glass-card scan-section">
+                <label
+                    style="font-size:14px; font-weight:600; color:var(--text-primary); display:block; margin-bottom:8px;">📷
+                    สแกน Serial</label>
+                <div class="serial-input">
+                    <input type="text" id="serialInput" placeholder="สแกนหรือพิมพ์ Serial..." autofocus>
+                </div>
+                <p style="font-size:12px; color:var(--text-muted); margin-top:8px; text-align:center;">สแกน Barcode
+                    แล้วกด Enter เพื่อเบิก</p>
+            </div>
+
+            <!-- Results -->
+            <div id="pickResults" class="pick-result">
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-icon">📷</div>
+                    <p>สแกน Serial เพื่อเริ่มเบิกสินค้า</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Modal (for serial not found) -->
+    <div class="modal-overlay" id="confirmPickModal">
+        <div class="modal" style="max-width:400px;">
+            <div class="confirm-dialog">
+                <div class="confirm-icon">⚠️</div>
+                <h3>ไม่พบ Serial ในระบบ</h3>
+                <p id="confirmPickMessage">Serial ไม่มีในระบบ คุณต้องการเบิกหรือไม่?</p>
+                <div style="font-size:12px; color:var(--text-muted); margin-bottom:20px;">
+                    หากยืนยัน จะบันทึกเป็นสถานะ <span class="badge badge-fail">Fail</span>
+                </div>
+                <div class="confirm-actions">
+                    <button class="btn btn-outline" onclick="cancelForcePick()">❌ ยกเลิก</button>
+                    <button class="btn btn-danger" onclick="submitForcePick()">⚠️ ยืนยันเบิก</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="js/auth.js"></script>
+    <script>
+        let currentUser = null;
+        let pendingForceSerial = '';
+        let pickResults = [];
+
+        // ===== Helpers =====
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add('removing');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // ===== Init =====
+        (async () => {
+            currentUser = await requireAuth(['warehouse', 'admin', 'sale_admin']);
+            if (!currentUser) return;
+
+            document.getElementById('pickUserBadge').textContent = currentUser.full_name;
+
+            // Focus serial input
+            document.getElementById('serialInput').focus();
+        })();
+
+        // ===== Scan Handler =====
+        document.getElementById('serialInput').addEventListener('keydown', async (e) => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+
+            const serial = e.target.value.trim();
+            const so = document.getElementById('soInput').value.trim();
+            const model = document.getElementById('modelInput').value.trim();
+            const partNo = document.getElementById('partNoInput').value.trim();
+
+            if (!so) {
+                showToast('กรุณาระบุเลข SO ก่อน', 'warning');
+                document.getElementById('soInput').focus();
+                return;
+            }
+            if (!serial) return;
+
+            e.target.value = '';
+            e.target.disabled = true;
+
+            try {
+                const data = await apiCall('pick.php', 'POST', { so, serial, model, part_no: partNo });
+
+                if (data.status === 'not_found') {
+                    // Show confirmation dialog
+                    pendingForceSerial = serial;
+                    document.getElementById('confirmPickMessage').textContent = data.message;
+                    document.getElementById('confirmPickModal').classList.add('active');
+                } else {
+                    // Pass or forced Fail
+                    addResult(data);
+                    showToast(data.message, data.status === 'Pass' ? 'success' : 'warning');
+                    document.getElementById('modelInput').value = '';
+                    document.getElementById('partNoInput').value = '';
+                }
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+
+            e.target.disabled = false;
+            e.target.focus();
+        });
+
+        // ===== Force Pick (Fail) =====
+        async function submitForcePick() {
+            const so = document.getElementById('soInput').value.trim();
+            const model = document.getElementById('modelInput').value.trim();
+            const partNo = document.getElementById('partNoInput').value.trim();
+            document.getElementById('confirmPickModal').classList.remove('active');
+
+            try {
+                const data = await apiCall('pick.php', 'POST', {
+                    so,
+                    serial: pendingForceSerial,
+                    model,
+                    part_no: partNo,
+                    force: true,
+                });
+                addResult(data);
+                showToast(data.message, 'warning');
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+
+            pendingForceSerial = '';
+            document.getElementById('modelInput').value = '';
+            document.getElementById('partNoInput').value = '';
+            document.getElementById('serialInput').focus();
+        }
+
+        function cancelForcePick() {
+            document.getElementById('confirmPickModal').classList.remove('active');
+            pendingForceSerial = '';
+            document.getElementById('serialInput').focus();
+        }
+
+        // ===== Render Results =====
+        function addResult(data) {
+            pickResults.unshift(data);
+            renderResults();
+        }
+
+        function renderResults() {
+            const container = document.getElementById('pickResults');
+            const emptyState = document.getElementById('emptyState');
+
+            if (pickResults.length === 0) {
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+
+            const html = pickResults.map(r => `
+                <div class="pick-result-card">
+                    <div class="result-status ${r.status.toLowerCase()}">
+                        ${r.status === 'Pass' ? '✅' : '❌'}
+                    </div>
+                    <div class="result-info">
+                        <div class="result-serial">${escapeHtml(r.serial)}</div>
+                        <div class="result-model">${escapeHtml(r.model || '-')} | ${escapeHtml(r.part_no || '-')}</div>
+                    </div>
+                    <span class="result-badge ${r.status.toLowerCase()}">${r.status}</span>
+                </div>
+            `).join('');
+
+            // Keep empty state but hidden, render results before it
+            container.innerHTML = html + '<div class="empty-state" id="emptyState" style="display:none;"><div class="empty-icon">📷</div><p>สแกน Serial เพื่อเริ่มเบิกสินค้า</p></div>';
+        }
+
+        // Keep focus on serial input
+        document.addEventListener('click', (e) => {
+            if (e.target.id !== 'soInput' && e.target.id !== 'modelInput' && e.target.id !== 'partNoInput' && !e.target.closest('.modal-overlay') && !e.target.closest('button')) {
+                setTimeout(() => document.getElementById('serialInput')?.focus(), 100);
+            }
+        });
+    </script>
+</body>
+
+</html>
