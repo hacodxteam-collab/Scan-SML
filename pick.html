@@ -12,14 +12,17 @@
     <div class="pick-layout">
         <!-- Header -->
         <header class="pick-header">
-            <div style="display:flex; align-items:center; gap:12px;">
-                <img src="Logo.png" alt="Logo" style="height:64px; border-radius:4px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <div style="background:#fff; border-radius:6px; padding:4px 8px; display:flex; align-items:center;">
+                    <img src="Logo.png" alt="Logo" style="height:36px; display:block;">
+                </div>
                 <h1 style="margin:0;">Pick (เบิก)</h1>
             </div>
-            <div style="display:flex; align-items:center; gap:10px;">
+            <div style="display:flex; align-items:center; gap:8px;">
                 <span class="user-badge" id="pickUserBadge">-</span>
-                <button class="btn btn-outline btn-sm" onclick="logout()"
-                    style="padding:6px 10px; font-size:12px;">🚪</button>
+                <button onclick="logout()"
+                    style="background:#fff; color:#dc2626; border:2px solid #fff; border-radius:8px; padding:6px 12px; font-size:13px; font-weight:600; cursor:pointer;">🚪
+                    ออก</button>
             </div>
         </header>
 
@@ -38,13 +41,25 @@
             <div class="glass-card scan-section">
                 <div class="form-group" style="margin-bottom:12px;">
                     <label style="font-size:14px; font-weight:600; color:var(--text-primary);">📦 Model</label>
-                    <input type="text" id="modelInput" placeholder="กรอก Model"
-                        style="font-size:16px; padding:14px 16px;">
+                    <div style="display:flex; gap:6px; align-items:center;">
+                        <input type="text" id="modelInput" placeholder="กรอก Model"
+                            style="font-size:16px; padding:14px 16px; flex:1;">
+                        <button type="button" class="lock-btn" id="lockModel" onclick="toggleLock('Model')"
+                            title="ล็อค/ปลดล็อค">
+                            🔓
+                        </button>
+                    </div>
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
                     <label style="font-size:14px; font-weight:600; color:var(--text-primary);">🔧 Part No.</label>
-                    <input type="text" id="partNoInput" placeholder="กรอก Part No."
-                        style="font-size:16px; padding:14px 16px;">
+                    <div style="display:flex; gap:6px; align-items:center;">
+                        <input type="text" id="partNoInput" placeholder="กรอก Part No."
+                            style="font-size:16px; padding:14px 16px; flex:1;">
+                        <button type="button" class="lock-btn" id="lockPartNo" onclick="toggleLock('PartNo')"
+                            title="ล็อค/ปลดล็อค">
+                            🔓
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -54,10 +69,18 @@
                     style="font-size:14px; font-weight:600; color:var(--text-primary); display:block; margin-bottom:8px;">📷
                     สแกน Serial</label>
                 <div class="serial-input">
-                    <input type="text" id="serialInput" placeholder="สแกนหรือพิมพ์ Serial..." autofocus>
+                    <input type="text" id="serialInput" placeholder="สแกนหรือพิมพ์ Serial..." inputmode="none">
                 </div>
-                <p style="font-size:12px; color:var(--text-muted); margin-top:8px; text-align:center;">สแกน Barcode
-                    แล้วกด Enter เพื่อเบิก</p>
+                <div style="display:flex; gap:8px; margin-top:10px;">
+                    <button type="button" id="submitPickBtn" onclick="submitPick()"
+                        style="flex:1; padding:14px; font-size:16px; font-weight:700; background:var(--gradient-primary); color:#fff; border:none; border-radius:8px; cursor:pointer; box-shadow:0 3px 10px rgba(220,38,38,0.3);">
+                        📤 บันทึกเบิก
+                    </button>
+                    <button type="button" onclick="clearAll()"
+                        style="padding:14px 20px; font-size:16px; font-weight:700; background:#f5f6fa; color:#dc2626; border:2px solid #dc2626; border-radius:8px; cursor:pointer;">
+                        🗑️ เคลียร์
+                    </button>
+                </div>
             </div>
 
             <!-- Results -->
@@ -94,6 +117,39 @@
     <script>
         let currentUser = null;
         let pendingForceSerial = '';
+        const lockedFields = { So: false, Model: false, PartNo: false };
+
+        function clearAll() {
+            document.getElementById('soInput').value = '';
+            document.getElementById('modelInput').value = '';
+            document.getElementById('partNoInput').value = '';
+            document.getElementById('serialInput').value = '';
+            document.getElementById('soInput').focus();
+        }
+
+        function toggleLock(field) {
+            lockedFields[field] = !lockedFields[field];
+            const btn = document.getElementById('lock' + field);
+            const inputMap = { So: 'soInput', Model: 'modelInput', PartNo: 'partNoInput' };
+            const input = document.getElementById(inputMap[field]);
+
+            if (lockedFields[field]) {
+                btn.textContent = '🔒';
+                btn.classList.add('locked');
+                input.style.background = '#fff3f3';
+                input.style.borderColor = '#dc2626';
+            } else {
+                btn.textContent = '🔓';
+                btn.classList.remove('locked');
+                input.style.background = '';
+                input.style.borderColor = '';
+            }
+        }
+
+        function clearUnlockedFields() {
+            if (!lockedFields.Model) document.getElementById('modelInput').value = '';
+            if (!lockedFields.PartNo) document.getElementById('partNoInput').value = '';
+        }
         let pickResults = [];
 
         // ===== Helpers =====
@@ -130,11 +186,9 @@
         })();
 
         // ===== Scan Handler =====
-        document.getElementById('serialInput').addEventListener('keydown', async (e) => {
-            if (e.key !== 'Enter') return;
-            e.preventDefault();
-
-            const serial = e.target.value.trim();
+        async function submitPick() {
+            const serialEl = document.getElementById('serialInput');
+            const serial = serialEl.value.trim();
             const so = document.getElementById('soInput').value.trim();
             const model = document.getElementById('modelInput').value.trim();
             const partNo = document.getElementById('partNoInput').value.trim();
@@ -144,33 +198,37 @@
                 document.getElementById('soInput').focus();
                 return;
             }
-            if (!serial) return;
+            if (!serial) {
+                showToast('กรุณาสแกนหรือกรอก Serial', 'warning');
+                serialEl.focus();
+                return;
+            }
 
-            e.target.value = '';
-            e.target.disabled = true;
+            serialEl.value = '';
+            serialEl.disabled = true;
+            document.getElementById('submitPickBtn').disabled = true;
 
             try {
                 const data = await apiCall('pick.php', 'POST', { so, serial, model, part_no: partNo });
 
                 if (data.status === 'not_found') {
-                    // Show confirmation dialog
                     pendingForceSerial = serial;
                     document.getElementById('confirmPickMessage').textContent = data.message;
                     document.getElementById('confirmPickModal').classList.add('active');
                 } else {
-                    // Pass or forced Fail
                     addResult(data);
                     showToast(data.message, data.status === 'Pass' ? 'success' : 'warning');
-                    document.getElementById('modelInput').value = '';
-                    document.getElementById('partNoInput').value = '';
+                    clearUnlockedFields();
                 }
             } catch (err) {
                 showToast(err.message, 'error');
             }
 
-            e.target.disabled = false;
-            e.target.focus();
-        });
+            serialEl.disabled = false;
+            document.getElementById('submitPickBtn').disabled = false;
+            serialEl.focus();
+        }
+
 
         // ===== Force Pick (Fail) =====
         async function submitForcePick() {
@@ -194,8 +252,7 @@
             }
 
             pendingForceSerial = '';
-            document.getElementById('modelInput').value = '';
-            document.getElementById('partNoInput').value = '';
+            clearUnlockedFields();
             document.getElementById('serialInput').focus();
         }
 
