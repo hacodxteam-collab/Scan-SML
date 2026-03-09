@@ -142,6 +142,7 @@
                             </tbody>
                         </table>
                     </div>
+                    <div class="pagination-bar" id="receivePagination"></div>
                 </div>
             </div>
 
@@ -189,6 +190,7 @@
                             </tbody>
                         </table>
                     </div>
+                    <div class="pagination-bar" id="statusPagination"></div>
                 </div>
             </div>
 
@@ -223,6 +225,7 @@
                                     <th>DateTime</th>
                                     <th>Status</th>
                                     <th>Name</th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="pickHistoryBody">
@@ -233,6 +236,7 @@
                             </tbody>
                         </table>
                     </div>
+                    <div class="pagination-bar" id="pickPagination"></div>
                 </div>
             </div>
 
@@ -415,6 +419,22 @@
         </div>
     </div>
 
+    <!-- Retry Pick Confirm Modal -->
+    <div class="modal-overlay" id="retryModal">
+        <div class="modal" style="max-width:400px;">
+            <div class="confirm-dialog">
+                <div class="confirm-icon" style="background:var(--primary-light); color:var(--primary-color);">🔄</div>
+                <h3>ยืนยันการส่งเบิกใหม่</h3>
+                <p id="retryMessage">ต้องการส่งเบิก Serial นี้ใหม่อีกครั้งใช่หรือไม่?</p>
+                <div style="font-size:12px; color:var(--text-muted); margin-top:8px;">(โปรดมั่นใจว่านำ Serial นี้เข้าระบบแล้ว)</div>
+                <div class="confirm-actions" id="retryModalActions">
+                    <button class="btn btn-outline" onclick="closeRetryModal()">ยกเลิก</button>
+                    <button class="btn btn-primary" onclick="confirmRetry()">🔄 ยืนยัน</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="toast-container" id="toastContainer"></div>
 
     <!-- SheetJS for Excel parsing -->
@@ -422,9 +442,36 @@
     <script src="js/auth.js"></script>
     <script>
         let currentUser = null;
-        let pendingDeleteId = null;
-        let pendingDeleteType = 'receive'; // 'receive' or 'user'
         let importData = [];
+
+        // Pagination state
+        const pageState = {
+            receive: { page: 1, perPage: 20, total: 0 },
+            status:  { page: 1, perPage: 20, total: 0 },
+            pick:    { page: 1, perPage: 20, total: 0 }
+        };
+
+        function renderPagination(key, containerId, loadFn) {
+            const s = pageState[key];
+            const totalPages = Math.ceil(s.total / s.perPage) || 1;
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            container.innerHTML = `
+                <div class="pagination-info">แสดง ${s.total} รายการ | หน้า ${s.page}/${totalPages}</div>
+                <div class="pagination-controls">
+                    <select class="page-size-select" onchange="pageState['${key}'].perPage=+this.value; pageState['${key}'].page=1; ${loadFn}()">
+                        <option value="20" ${s.perPage===20?'selected':''}>20 แถว</option>
+                        <option value="50" ${s.perPage===50?'selected':''}>50 แถว</option>
+                        <option value="100" ${s.perPage===100?'selected':''}>100 แถว</option>
+                    </select>
+                    <button class="page-btn" ${s.page<=1?'disabled':''} onclick="pageState['${key}'].page=1; ${loadFn}()">«</button>
+                    <button class="page-btn" ${s.page<=1?'disabled':''} onclick="pageState['${key}'].page--; ${loadFn}()">‹</button>
+                    <button class="page-btn" ${s.page>=totalPages?'disabled':''} onclick="pageState['${key}'].page++; ${loadFn}()">›</button>
+                    <button class="page-btn" ${s.page>=totalPages?'disabled':''} onclick="pageState['${key}'].page=${totalPages}; ${loadFn}()">»</button>
+                </div>
+            `;
+        }
 
         // ===== Helpers =====
         function escapeHtml(text) {
@@ -691,12 +738,21 @@
                 const items = await apiCall(`receive.php?search=${encodeURIComponent(search)}`);
                 const tbody = document.getElementById('receiveTableBody');
 
-                if (items.length === 0) {
+                const s = pageState.receive;
+                s.total = items.length;
+                if (s.total === 0) {
                     tbody.innerHTML = '<tr><td colspan="11" class="text-center" style="padding:40px; color:var(--text-muted);">ไม่พบรายการ</td></tr>';
+                    document.getElementById('receivePagination').innerHTML = '';
                     return;
                 }
 
-                tbody.innerHTML = items.map(r => `
+                const totalPages = Math.ceil(s.total / s.perPage) || 1;
+                if (s.page > totalPages) s.page = totalPages;
+                
+                const start = (s.page - 1) * s.perPage;
+                const pageItems = items.slice(start, start + s.perPage);
+
+                tbody.innerHTML = pageItems.map(r => `
                     <tr>
                         <td>${escapeHtml(r.po)}</td>
                         <td>${escapeHtml(r.model)}</td>
@@ -716,6 +772,8 @@
                         </td>
                     </tr>
                 `).join('');
+                
+                renderPagination('receive', 'receivePagination', 'loadReceiveList');
             } catch (err) {
                 showToast('โหลดรายการรับเข้าผิดพลาด: ' + err.message, 'error');
             }
@@ -852,41 +910,61 @@
         }
 
         // ===== DELETE =====
+        let pendingDeleteId = null;
+        let pendingDeleteType = null; // 'receive', 'user', or 'pick'
+
         function openDeleteModal(id, label, type = 'receive') {
             pendingDeleteId = id;
             pendingDeleteType = type;
 
             let msg = `ต้องการลบข้อมูลนี้หรือไม่?`;
             if (type === 'receive') {
-                msg = `ต้องการลบ Serial "${label}" หรือไม่?`;
+                msg = `ต้องการลบ Serial "${escapeHtml(label)}" ออกจากสต๊อกหรือไม่?`;
             } else if (type === 'user') {
-                msg = `ต้องการลบผู้ใช้ "${label}" หรือไม่?`;
+                msg = `ต้องการลบผู้ใช้ "${escapeHtml(label)}" หรือไม่?`;
+            } else if (type === 'pick') {
+                msg = `ต้องการลบประวัติเบิก Serial "${escapeHtml(label)}" ที่ค้างอยู่หรือไม่?`;
             }
 
-            document.getElementById('deleteMessage').textContent = msg;
+            document.getElementById('deleteMessage').innerHTML = msg;
             document.getElementById('deleteModal').classList.add('active');
         }
 
         function closeDeleteModal() {
             document.getElementById('deleteModal').classList.remove('active');
             pendingDeleteId = null;
+            pendingDeleteType = null;
         }
 
         async function confirmDelete() {
-            if (!pendingDeleteId) return;
+            if (!pendingDeleteId || !pendingDeleteType) return;
+            const btn = document.getElementById('confirmDeleteBtn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = 'กำลังลบ...';
+            btn.disabled = true;
+
             try {
                 if (pendingDeleteType === 'user') {
                     await apiCall(`users.php?id=${pendingDeleteId}`, 'DELETE');
                     showToast('ลบผู้ใช้สำเร็จ', 'success');
                     loadUsers();
+                } else if (pendingDeleteType === 'pick') {
+                    await apiCall(`pick.php?id=${pendingDeleteId}`, 'DELETE');
+                    showToast('ลบประวัติเบิกที่ค้างสำเร็จ', 'success');
+                    loadPickHistory();
+                    loadDashboard();
                 } else {
                     await apiCall(`receive.php?id=${pendingDeleteId}`, 'DELETE');
                     showToast('ลบรายการรับเข้าสำเร็จ', 'success');
                     loadReceiveList();
+                    loadDashboard();
                 }
                 closeDeleteModal();
             } catch (err) {
                 showToast(err.message, 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
             }
         }
 
@@ -898,12 +976,21 @@
                 const items = await apiCall(`receive.php?search=${encodeURIComponent(search)}&status=${encodeURIComponent(status)}`);
                 const tbody = document.getElementById('statusTableBody');
 
-                if (items.length === 0) {
+                const s = pageState.status;
+                s.total = items.length;
+                if (s.total === 0) {
                     tbody.innerHTML = '<tr><td colspan="10" class="text-center" style="padding:40px; color:var(--text-muted);">ไม่พบรายการ</td></tr>';
+                    document.getElementById('statusPagination').innerHTML = '';
                     return;
                 }
 
-                tbody.innerHTML = items.map(r => `
+                const totalPages = Math.ceil(s.total / s.perPage) || 1;
+                if (s.page > totalPages) s.page = totalPages;
+                
+                const start = (s.page - 1) * s.perPage;
+                const pageItems = items.slice(start, start + s.perPage);
+
+                tbody.innerHTML = pageItems.map(r => `
                     <tr>
                         <td>${escapeHtml(r.po)}</td>
                         <td>${escapeHtml(r.model)}</td>
@@ -917,6 +1004,8 @@
                         <td style="color:#059669; background:rgba(5,150,105,0.1);">${escapeHtml(r.name_scan_out || '-')}</td>
                     </tr>
                 `).join('');
+                
+                renderPagination('status', 'statusPagination', 'loadStatusList');
             } catch (err) {
                 showToast('โหลดสถานะผิดพลาด: ' + err.message, 'error');
             }
@@ -930,12 +1019,21 @@
                 const items = await apiCall(`pick.php?search=${encodeURIComponent(search)}&status=${encodeURIComponent(status)}`);
                 const tbody = document.getElementById('pickHistoryBody');
 
-                if (items.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" class="text-center" style="padding:40px; color:var(--text-muted);">ไม่พบรายการ</td></tr>';
+                const s = pageState.pick;
+                s.total = items.length;
+                if (s.total === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center" style="padding:40px; color:var(--text-muted);">ไม่พบรายการ</td></tr>';
+                    document.getElementById('pickPagination').innerHTML = '';
                     return;
                 }
 
-                tbody.innerHTML = items.map(p => `
+                const totalPages = Math.ceil(s.total / s.perPage) || 1;
+                if (s.page > totalPages) s.page = totalPages;
+                
+                const start = (s.page - 1) * s.perPage;
+                const pageItems = items.slice(start, start + s.perPage);
+                
+                tbody.innerHTML = pageItems.map(p => `
                     <tr>
                         <td>${escapeHtml(p.so)}</td>
                         <td style="font-family:monospace; font-size:12px;">${escapeHtml(p.serial)}</td>
@@ -944,11 +1042,79 @@
                         <td>${formatDateTime(p.date_time)}</td>
                         <td><span class="badge badge-${p.status.toLowerCase()}">${p.status}</span></td>
                         <td>${escapeHtml(p.name)}</td>
+                        <td>
+                            <div style="display:flex; gap:6px;">
+                            ${p.status === 'Fail' && (currentUser.role === 'admin' || currentUser.role === 'sale_admin') 
+                                ? `<button class="btn btn-outline btn-sm" onclick="openRetryModal(${p.id}, '${escapeHtml(p.serial)}')" title="ส่งเบิกใหม่ (Retry)">🔄</button>
+                                   <button class="btn btn-danger btn-sm" onclick="openDeleteModal(${p.id}, '${escapeHtml(p.serial)}', 'pick')" title="ลบรายการนี้">🗑️</button>` 
+                                : ''}
+                            </div>
+                        </td>
                     </tr>
                 `).join('');
+                
+                renderPagination('pick', 'pickPagination', 'loadPickHistory');
             } catch (err) {
                 showToast('โหลดประวัติเบิกผิดพลาด: ' + err.message, 'error');
             }
+        }
+
+        // ===== RETRY PICK =====
+        let pendingRetryId = null;
+
+        function openRetryModal(pickId, serial) {
+            pendingRetryId = pickId;
+            document.getElementById('retryMessage').innerHTML = `ต้องการส่งเบิก Serial <b>"${escapeHtml(serial)}"</b> ใหม่อีกครั้งใช่หรือไม่?`;
+            document.getElementById('retryModalActions').innerHTML = `
+                <button class="btn btn-outline" onclick="closeRetryModal()">ยกเลิก</button>
+                <button class="btn btn-primary" onclick="confirmRetry()">🔄 ยืนยัน</button>
+            `;
+            document.getElementById('retryModal').classList.add('active');
+        }
+
+        function closeRetryModal() {
+            document.getElementById('retryModal').classList.remove('active');
+            pendingRetryId = null;
+        }
+
+        async function confirmRetry() {
+            if (!pendingRetryId) return;
+            
+            try {
+                const res = await apiCall(`pick.php?action=retry`, 'POST', { pick_id: pendingRetryId });
+                
+                if (res.status === 'not_found') {
+                    // Update Modal Interface to offer Quick Add
+                    document.getElementById('retryMessage').innerHTML = `
+                        <div style="color:#dc2626; font-weight:bold; margin-bottom:12px;">❌ ไม่พบ Serial นี้ในสต็อกรับเข้า (Receive)</div>
+                        ต้องการเพิ่มข้อมูลรับเข้าของ <b>${escapeHtml(res.pick_data.serial)}</b> ทันทีเลยหรือไม่?
+                    `;
+                    document.getElementById('retryModalActions').innerHTML = `
+                        <button class="btn btn-outline" onclick="closeRetryModal()">ยกเลิก</button>
+                        <button class="btn btn-primary" onclick="quickAddReceive('${escapeHtml(res.pick_data.serial)}', '${escapeHtml(res.pick_data.model)}', '${escapeHtml(res.pick_data.part_no)}')">➕ เพิ่มข้อมูลรับเข้า</button>
+                    `;
+                    return;
+                }
+
+                showToast(res.message || 'ส่งเบิกใหม่สำเร็จ', 'success');
+                closeRetryModal();
+                loadPickHistory();
+                loadDashboard(); // Refresh dash numbers
+            } catch (err) {
+                showToast('ไม่สามารถส่งเบิกใหม่ได้: ' + err.message, 'error');
+            }
+        }
+
+        // Quick Add Receive directly from Retry Modal
+        function quickAddReceive(serial, model, part_no) {
+            closeRetryModal();
+            // Switch tab to receive so the user knows where they are
+            switchTab('receive');
+            openReceiveModal();
+            document.getElementById('receiveSerial').value = serial;
+            document.getElementById('receiveModel').value = model || '';
+            document.getElementById('receivePartNo').value = part_no || '';
+            showToast('กรุณากรอกข้อมูลรับเข้าที่เหลือแล้วกดบันทึก', 'info');
         }
 
         // Drag & drop for file upload

@@ -31,6 +31,63 @@ switch ($method) {
     case 'POST':
         $data = getInput();
 
+        // Check if this is a RETRY action
+        if (isset($_GET['action']) && $_GET['action'] === 'retry') {
+            if (empty($data['pick_id'])) {
+                jsonResponse(['error' => 'No pick_id provided'], 400);
+            }
+
+            // 1. Get the Failed Pick Record
+            $pickStmt = $pdo->prepare("SELECT * FROM pick WHERE id = ? AND status = 'Fail'");
+            $pickStmt->execute([$data['pick_id']]);
+            $pick = $pickStmt->fetch();
+
+            if (!$pick) {
+                jsonResponse(['error' => 'ไม่พบรายการเบิกที่ Fail (อาจถูกลบหรือ Pass ไปแล้ว)'], 404);
+            }
+
+            // 2. Check if Serial exists in Receive at all
+            $recStmt = $pdo->prepare("SELECT * FROM receive WHERE serial = ?");
+            $recStmt->execute([$pick['serial']]);
+            $receiveItem = $recStmt->fetch();
+
+            if (!$receiveItem) {
+                // Truly missing - trigger quick add
+                jsonResponse([
+                    'status' => 'not_found',
+                    'message' => "Serial '{$pick['serial']}' ไม่มีระบบ",
+                    'pick_data' => $pick
+                ]);
+            }
+
+            // If it exists, check if it's Open
+            if ($receiveItem['status'] !== 'Open') {
+                jsonResponse([
+                    'error' => "Serial '{$pick['serial']}' มีในระบบแล้ว แต่ถูกเบิกออกไปแล้ว (สถานะ: {$receiveItem['status']}) ไม่สามารถเบิกซ้ำได้"
+                ], 400);
+            }
+
+            // 3. Update both tables
+            $userName = $_SESSION['user']['full_name'] ?? 'Unknown';
+            $pdo->beginTransaction();
+            try {
+                // Update Pick
+                $updPick = $pdo->prepare("UPDATE pick SET status = 'Pass', model = ?, part_no = ?, name = ?, date_time = NOW() WHERE id = ?");
+                $updPick->execute([$receiveItem['model'], $receiveItem['part_no'], $userName, $pick['id']]);
+
+                // Update Receive
+                $updRec = $pdo->prepare("UPDATE receive SET status = 'Confirm Picking', time_scan_out = NOW(), name_scan_out = ? WHERE id = ?");
+                $updRec->execute([$userName, $receiveItem['id']]);
+
+                $pdo->commit();
+                jsonResponse(['status' => 'success', 'message' => 'ตรวจสอบและส่งเบิกใหม่ (Retry) สำเร็จ!']);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                jsonResponse(['error' => 'Database error: ' . $e->getMessage()], 500);
+            }
+            break;
+        }
+
         if (empty($data['so'])) {
             jsonResponse(['error' => 'กรุณาระบุเลข SO'], 400);
         }
@@ -88,7 +145,6 @@ switch ($method) {
                 $pdo->rollBack();
                 jsonResponse(['error' => $e->getMessage()], 500);
             }
-
         } else {
             // Serial NOT found
             if (!$forceSubmit) {
@@ -115,6 +171,23 @@ switch ($method) {
                     'serial' => $data['serial'],
                 ]);
             }
+        }
+        break;
+
+    case 'DELETE':
+        $id = $_GET['id'] ?? null;
+        if (!$id) {
+            jsonResponse(['error' => 'ID is required'], 400);
+        }
+
+        try {
+            // Optional: you could restrict this to only allow deleting "Fail" status records
+            // but we'll leave it open for admin cleanup and handle permission in UI
+            $stmt = $pdo->prepare("DELETE FROM pick WHERE id=?");
+            $stmt->execute([$id]);
+            jsonResponse(['message' => 'ลบรายการสำเร็จ']);
+        } catch (PDOException $e) {
+            jsonResponse(['error' => 'Delete failed: ' . $e->getMessage()], 500);
         }
         break;
 

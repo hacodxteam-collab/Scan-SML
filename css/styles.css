@@ -1460,6 +1460,64 @@ tbody tr:hover {
     border-color: #dc2626;
 }
 
+/* Pagination */
+.pagination-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    border-top: 1px solid rgba(0,0,0,0.05);
+    background: #f8fafc;
+    border-radius: 0 0 16px 16px;
+}
+
+.pagination-info {
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.page-size-select {
+    padding: 6px 12px;
+    border: 1px solid rgba(0,0,0,0.1);
+    border-radius: 6px;
+    font-family: var(--font);
+    font-size: 14px;
+    outline: none;
+    margin-right: 8px;
+}
+
+.page-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(0,0,0,0.1);
+    background: #fff;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: var(--font);
+    transition: all 0.2s;
+}
+
+.page-btn:hover:not(:disabled) {
+    background: var(--primary-light);
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.page-btn:disabled {
+    background: #f1f5f9;
+    color: #cbd5e1;
+    cursor: not-allowed;
+}
+
 /* === Pick Page Compact Sections === */
 .pick-layout {
     min-height: 100vh;
