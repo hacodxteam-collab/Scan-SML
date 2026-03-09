@@ -1045,7 +1045,7 @@
                         <td>${escapeHtml(p.name)}</td>
                         <td>
                             <div style="display:flex; gap:6px;">
-                            ${p.status === 'Fail' && (currentUser.role === 'admin' || currentUser.role === 'sale_admin') 
+                            ${p.status === 'Fail' && currentUser.role === 'admin' 
                                 ? `<button class="btn btn-outline btn-sm" onclick="openRetryModal(${p.id}, '${escapeHtml(p.serial)}')" title="ส่งเบิกใหม่ (Retry)">🔄</button>
                                    <button class="btn btn-danger btn-sm" onclick="openDeleteModal(${p.id}, '${escapeHtml(p.serial)}', 'pick')" title="ลบรายการนี้">🗑️</button>` 
                                 : ''}
