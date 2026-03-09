@@ -67,14 +67,28 @@ $zip->addFromString('xl/styles.xml', '<?xml version="1.0" encoding="UTF-8" stand
 </styleSheet>');
 
 // Shared strings (header labels + example data)
-$strings = ['PO', 'Model', 'PartNo', 'Serial', 'Warranty',
-            'PO20250301', 'SUN2000-5KTL-L1', '01075346-020', '2120023002KBR7000915', '2 Years',
-            'PO20250301', 'DTSU666-HW', '01076946', '2120023002KBR7000916', '1 Year'];
+$strings = [
+  'PO',
+  'Model',
+  'PartNo',
+  'Serial',
+  'Warranty',
+  'PO20250301',
+  'SUN2000-5KTL-L1',
+  '01075346-020',
+  '2120023002KBR7000915',
+  '2',
+  'PO20250301',
+  'DTSU666-HW',
+  '01076946',
+  '2120023002KBR7000916',
+  '1'
+];
 
 $sharedStringsXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="' . count($strings) . '" uniqueCount="' . count($strings) . '">';
 foreach ($strings as $s) {
-    $sharedStringsXml .= '<si><t>' . htmlspecialchars($s) . '</t></si>';
+  $sharedStringsXml .= '<si><t>' . htmlspecialchars($s) . '</t></si>';
 }
 $sharedStringsXml .= '</sst>';
 $zip->addFromString('xl/sharedStrings.xml', $sharedStringsXml);
