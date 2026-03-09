@@ -116,6 +116,9 @@ switch ($method) {
 
         if ($receiveItem) {
             // Serial found — Pass
+            $finalModel = !empty($receiveItem['model']) ? $receiveItem['model'] : ($data['model'] ?? '');
+            $finalPartNo = !empty($receiveItem['part_no']) ? $receiveItem['part_no'] : ($data['part_no'] ?? '');
+
             $pdo->beginTransaction();
             try {
                 // Insert pick record
@@ -123,8 +126,8 @@ switch ($method) {
                 $stmt->execute([
                     $data['so'],
                     $data['serial'],
-                    $receiveItem['model'],
-                    $receiveItem['part_no'],
+                    $finalModel,
+                    $finalPartNo,
                     $userName,
                 ]);
 
@@ -137,9 +140,10 @@ switch ($method) {
                 jsonResponse([
                     'status' => 'Pass',
                     'message' => 'เบิกสำเร็จ',
+                    'so' => $data['so'],
                     'serial' => $data['serial'],
-                    'model' => $receiveItem['model'],
-                    'part_no' => $receiveItem['part_no'],
+                    'model' => $finalModel,
+                    'part_no' => $finalPartNo,
                 ]);
             } catch (Exception $e) {
                 $pdo->rollBack();
@@ -168,7 +172,10 @@ switch ($method) {
                 jsonResponse([
                     'status' => 'Fail',
                     'message' => 'บันทึกเป็น Fail — Serial ไม่มีในระบบ',
+                    'so' => $data['so'],
                     'serial' => $data['serial'],
+                    'model' => $data['model'] ?? '',
+                    'part_no' => $data['part_no'] ?? '',
                 ]);
             }
         }
